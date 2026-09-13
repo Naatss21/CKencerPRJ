@@ -1,36 +1,42 @@
 package com.example.ckencer2;
 
-import androidx.appcompat.app.AppCompatActivity;
 
-import android.os.Bundle;
-import android.widget.TextView;
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.Column
 
-import com.example.ckencer2.databinding.ActivityMainBinding;
+class MainActivity : ComponentActivity() {
 
-public class MainActivity extends AppCompatActivity {
-
-    // Used to load the 'ckencer2' library on application startup.
-    static {
-        System.loadLibrary("ckencer2");
+    companion object {
+        init {
+            System.loadLibrary("ckencer2")
+        }
     }
 
-    private ActivityMainBinding binding;
+    external fun startAudio()
+    external fun stopAudio()
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
-
-        // Example of a call to a native method
-        TextView tv = binding.sampleText;
-        tv.setText(stringFromJNI());
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            val isPlaying = remember { mutableStateOf(false) }
+            Column {
+                Button(onClick = {
+                if (isPlaying.value) {
+                    stopAudio()
+                } else {
+                    startAudio()
+                }
+                isPlaying.value = !isPlaying.value
+                }) {
+                    Text(if (isPlaying.value) "Stop" else "Play")
+                }
+            }
+        }
     }
-
-    /**
-     * A native method that is implemented by the 'ckencer2' native library,
-     * which is packaged with this application.
-     */
-    public native String stringFromJNI();
 }

@@ -16,7 +16,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
+
     }
 
     buildTypes {
@@ -39,6 +39,10 @@ android {
     buildFeatures {
         viewBinding = true
         prefab = true
+        compose = true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8" // Ou selon ta version de Kotlin
     }
 
 }
@@ -50,4 +54,5 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.ext.junit)
+    implementation("com.google.oboe:oboe:1.9.0")
 }
