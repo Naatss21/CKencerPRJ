@@ -1,42 +1,37 @@
 package com.example.ckencer2;
 
+import android.os.Bundle;
+import android.widget.Button;
+import androidx.appcompat.app.AppCompatActivity;
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.Column
+public class MainActivity extends AppCompatActivity {
 
-class MainActivity : ComponentActivity() {
-
-    companion object {
-        init {
-            System.loadLibrary("ckencer2")
-        }
+    static {
+        System.loadLibrary("ckencer2");
     }
 
-    external fun startAudio()
-    external fun stopAudio()
+    // Méthodes natives C++
+    public native void startAudio();
+    public native void stopAudio();
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            val isPlaying = remember { mutableStateOf(false) }
-            Column {
-                Button(onClick = {
-                if (isPlaying.value) {
-                    stopAudio()
-                } else {
-                    startAudio()
-                }
-                isPlaying.value = !isPlaying.value
-                }) {
-                    Text(if (isPlaying.value) "Stop" else "Play")
-                }
+    private boolean isPlaying = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        Button toggleButton = findViewById(R.id.playBouton);
+        toggleButton.setOnClickListener(v -> {
+            if (isPlaying) {
+                stopAudio();
+                toggleButton.setText("Start");
+                isPlaying = false;
+            } else {
+                startAudio();
+                toggleButton.setText("Stop");
+                isPlaying = true;
             }
-        }
+        });
     }
 }

@@ -4,55 +4,56 @@ plugins {
 
 android {
     namespace = "com.example.ckencer2"
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 35 // Utilise 34 (ou la version stable de ton SDK installé)
 
     defaultConfig {
         applicationId = "com.example.ckencer2"
         minSdk = 27
-        targetSdk = 37
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // Active Prefab pour importer la lib native Oboe en C++
+        externalNativeBuild {
+            cmake {
+                arguments("-DANDROID_STL=c++_shared")
+            }
+        }
     }
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = false
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.22.1"
         }
     }
+
     buildFeatures {
         viewBinding = true
         prefab = true
-        compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8" // Ou selon ta version de Kotlin
-    }
-
 }
 
 dependencies {
     implementation(libs.appcompat)
     implementation(libs.constraintlayout)
     implementation(libs.material)
+    implementation(libs.oboe)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.ext.junit)
-    implementation("com.google.oboe:oboe:1.9.0")
 }

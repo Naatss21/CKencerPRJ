@@ -44,7 +44,7 @@ Java_com_example_ckencer2_MainActivity_startAudio(JNIEnv *env, jobject /* this *
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_minidaw_MainActivity_stopAudio(JNIEnv *env, jobject /* this */) {
+Java_com_example_ckencer2_MainActivity_stopAudio(JNIEnv *env, jobject /* this */) {
     if (stream) {
         stream->requestStop();
         stream->close();
