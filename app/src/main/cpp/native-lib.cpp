@@ -6,6 +6,7 @@
 #include <vector>
 #include <atomic>
 #include <cmath>
+#include <algorithm>
 
 
 // ---------------------------------------------------------------------------
@@ -303,4 +304,252 @@ Java_com_example_ckencer2_NativeAudio_setStepActive(JNIEnv *env, jclass /* clazz
     if (index >= 0 && index < SamplePlayer::kMaxSteps) {
         callback.stepActive[index] = active;
     }
+}
+
+
+// =====================================================================================
+// MOTEUR MULTI-PISTES (séquenceur) — vient s'ajouter au moteur mono-piste existant
+// ci-dessus. Les deux coexistent pour l'instant ; l'interface (écran séquenceur)
+// sera branchée sur celui-ci à l'étape suivante.
+// =====================================================================================
+
+static constexpr int32_t kSequencerMaxTracks = 4;
+static constexpr int32_t kSequencerMaxSteps = 32;
+static constexpr int32_t kEngineSampleRate = 44100; // toutes les pistes doivent être à ce sample rate
+
+struct Track {
+    std::vector<float> samples;                          // audio entrelacé, mono ou stéréo
+    std::atomic<int32_t> position{0};
+    std::atomic<int32_t> channelCount{1};
+    std::atomic<bool> assigned{false};                    // un son a-t-il été chargé sur cette piste ?
+    std::atomic<bool> stepActive[kSequencerMaxSteps];     // grille de cette piste (false par défaut)
+};
+
+class MultiTrackEngine : public oboe::AudioStreamCallback {
+public:
+    oboe::DataCallbackResult onAudioReady(
+            oboe::AudioStream *outStream,
+            void *audioData,
+            int32_t numFrames) override {
+
+        auto *outputBuffer = static_cast<float *>(audioData);
+        int32_t outChannels = outStream->getChannelCount();
+
+        for (int32_t frame = 0; frame < numFrames; frame++) {
+            // Avance du séquenceur : un pas toutes les "framesPerStep" frames écoulées.
+            if (isPlaying && framesPerStep > 0) {
+                stepFrameCounter++;
+                if (stepFrameCounter >= framesPerStep) {
+                    stepFrameCounter = 0;
+                    int32_t total = numSteps.load();
+                    if (total > 0) {
+                        int32_t next = (currentStepIndex.load() + 1) % total;
+                        currentStepIndex = next;
+                        for (int32_t t = 0; t < kSequencerMaxTracks; t++) {
+                            if (tracks[t].assigned && next < kSequencerMaxSteps &&
+                                tracks[t].stepActive[next].load()) {
+                                tracks[t].position = 0; // ce pas est actif : on rejoue cette piste
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Mixage : on additionne toutes les pistes actives sur ce frame.
+            float left = 0.0f, right = 0.0f;
+            for (int32_t t = 0; t < kSequencerMaxTracks; t++) {
+                Track &track = tracks[t];
+                if (!track.assigned) continue;
+
+                int32_t pos = track.position.load();
+                if (pos >= (int32_t) track.samples.size()) continue; // piste terminée : silence
+
+                int32_t trackChannels = track.channelCount.load();
+                if (trackChannels >= 2 && pos + 1 < (int32_t) track.samples.size()) {
+                    left += track.samples[pos];
+                    right += track.samples[pos + 1];
+                    track.position = pos + 2;
+                } else {
+                    float value = track.samples[pos];
+                    left += value;
+                    right += value;
+                    track.position = pos + 1;
+                }
+            }
+
+            // Léger écrêtage pour éviter la saturation quand plusieurs pistes s'additionnent.
+            left = std::max(-1.0f, std::min(1.0f, left));
+            right = std::max(-1.0f, std::min(1.0f, right));
+
+            for (int32_t ch = 0; ch < outChannels; ch++) {
+                outputBuffer[frame * outChannels + ch] = (ch == 0) ? left : right;
+            }
+        }
+
+        return oboe::DataCallbackResult::Continue;
+    }
+
+    Track tracks[kSequencerMaxTracks];
+    std::atomic<bool> isPlaying{false};
+    std::atomic<int32_t> numSteps{5};
+    std::atomic<int32_t> framesPerStep{0};
+    std::atomic<int32_t> stepFrameCounter{0};
+    std::atomic<int32_t> currentStepIndex{-1};
+};
+
+static MultiTrackEngine engine;
+static std::atomic<int32_t> sequencerBpm{120};
+static std::atomic<int32_t> sequencerStepsPerGroup{4}; // 4 = binaire, 3 = ternaire (provisoire, remplacé par la signature à l'étape suivante)
+
+static void updateSequencerTiming() {
+    int32_t bpm = sequencerBpm.load();
+    int32_t spg = sequencerStepsPerGroup.load();
+    if (bpm > 0 && spg > 0) {
+        int32_t framesPerBeat = (int32_t) std::round(kEngineSampleRate * 60.0 / bpm);
+        engine.framesPerStep = framesPerBeat / spg;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// JNI : chargement d'un son sur une piste précise (0 à kSequencerMaxTracks - 1)
+// ---------------------------------------------------------------------------
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_example_ckencer2_NativeAudio_loadTrackSound(JNIEnv *env, jclass /* clazz */,
+                                                     jint trackIndex,
+                                                     jobject assetManager, jstring fileName) {
+    if (trackIndex < 0 || trackIndex >= kSequencerMaxTracks) return JNI_FALSE;
+
+    AAssetManager *mgr = AAssetManager_fromJava(env, assetManager);
+    if (!mgr) return JNI_FALSE;
+
+    const char *path = env->GetStringUTFChars(fileName, nullptr);
+    AAsset *asset = AAssetManager_open(mgr, path, AASSET_MODE_BUFFER);
+    env->ReleaseStringUTFChars(fileName, path);
+    if (!asset) return JNI_FALSE;
+
+    off_t assetLength = AAsset_getLength(asset);
+    const auto *assetBuffer = static_cast<const uint8_t *>(AAsset_getBuffer(asset));
+
+    WavHeader header;
+    const uint8_t *pcmData = nullptr;
+    size_t pcmSize = 0;
+    bool ok = assetBuffer != nullptr &&
+              parseWav(assetBuffer, (size_t) assetLength, header, pcmData, pcmSize);
+
+    bool isPcm16 = header.formatTag == 1 && header.bitsPerSample == 16;
+    bool isPcm32 = header.formatTag == 1 && header.bitsPerSample == 32;
+    bool isFloat32 = header.formatTag == 3 && header.bitsPerSample == 32;
+
+    if (ok && header.channels > 0 && (isPcm16 || isPcm32 || isFloat32)) {
+        std::vector<float> floatSamples;
+
+        if (isPcm16) {
+            size_t sampleCount = pcmSize / 2;
+            floatSamples.resize(sampleCount);
+            const auto *pcm16 = reinterpret_cast<const int16_t *>(pcmData);
+            for (size_t i = 0; i < sampleCount; i++) {
+                floatSamples[i] = pcm16[i] / 32768.0f;
+            }
+        } else if (isPcm32) {
+            size_t sampleCount = pcmSize / 4;
+            floatSamples.resize(sampleCount);
+            const auto *pcm32i = reinterpret_cast<const int32_t *>(pcmData);
+            for (size_t i = 0; i < sampleCount; i++) {
+                floatSamples[i] = pcm32i[i] / 2147483648.0f;
+            }
+        } else { // isFloat32
+            size_t sampleCount = pcmSize / 4;
+            floatSamples.resize(sampleCount);
+            const auto *pcm32f = reinterpret_cast<const float *>(pcmData);
+            std::memcpy(floatSamples.data(), pcm32f, sampleCount * sizeof(float));
+        }
+
+        Track &track = engine.tracks[trackIndex];
+        track.samples = std::move(floatSamples);
+        track.channelCount = header.channels;
+        track.position = (int32_t) track.samples.size(); // silencieuse tant qu'aucun pas ne la déclenche
+        track.assigned = true;
+        // NB : on suppose que le fichier est déjà à kEngineSampleRate (44100 Hz), comme tes assets
+        // actuels. Un fichier à un autre sample rate jouera légèrement décalé en hauteur/vitesse
+        // (le ré-échantillonnage par piste n'est pas géré à cette étape).
+    } else {
+        ok = false;
+    }
+
+    AAsset_close(asset);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setTrackStepActive(JNIEnv *env, jclass /* clazz */,
+                                                         jint trackIndex, jint stepIndex,
+                                                         jboolean active) {
+    if (trackIndex < 0 || trackIndex >= kSequencerMaxTracks) return;
+    if (stepIndex < 0 || stepIndex >= kSequencerMaxSteps) return;
+    engine.tracks[trackIndex].stepActive[stepIndex] = active;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setSequencerBpm(JNIEnv *env, jclass /* clazz */, jint bpm) {
+    sequencerBpm = bpm;
+    updateSequencerTiming();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setSequencerSubdivision(JNIEnv *env, jclass /* clazz */,
+                                                              jint stepsPerGroup) {
+    if (stepsPerGroup > 0) {
+        sequencerStepsPerGroup = stepsPerGroup;
+        updateSequencerTiming();
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setSequencerLength(JNIEnv *env, jclass /* clazz */,
+                                                         jint steps) {
+    if (steps > 0 && steps <= kSequencerMaxSteps) {
+        engine.numSteps = steps;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setSequencerPlaying(JNIEnv *env, jclass /* clazz */,
+                                                          jboolean playing) {
+    engine.isPlaying = playing;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_restartSequencer(JNIEnv *env, jclass /* clazz */) {
+    engine.currentStepIndex = -1;
+    engine.stepFrameCounter = engine.framesPerStep.load(); // déclenche le pas 0 dès le prochain frame
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_startSequencerStream(JNIEnv *env, jclass /* clazz */) {
+    if (stream) return; // déjà ouvert (par ce moteur ou par l'ancien, un seul flux à la fois)
+
+    oboe::AudioStreamBuilder builder;
+    builder.setDirection(oboe::Direction::Output);
+    builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
+    builder.setSharingMode(oboe::SharingMode::Exclusive);
+    builder.setFormat(oboe::AudioFormat::Float);
+    builder.setChannelCount(2);
+    builder.setSampleRate(kEngineSampleRate);
+    builder.setSampleRateConversionQuality(oboe::SampleRateConversionQuality::Medium);
+    builder.setCallback(&engine);
+
+    builder.openStream(&stream);
+    if (stream) {
+        stream->requestStart();
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_stopSequencerStream(JNIEnv *env, jclass /* clazz */) {
+    if (stream) {
+        stream->requestStop();
+        stream->close();
+        stream = nullptr;
+    }
+    engine.isPlaying = false;
 }

@@ -15,17 +15,25 @@ public final class NativeAudio {
 
     private NativeAudio() {}
 
+    // --- Ancien moteur mono-piste (Play/Stop, boucle BPM, pattern simple) ---
     public static native boolean loadSound(AssetManager assetManager, String fileName);
     public static native void startAudio();
     public static native void stopAudio();
-
-    // Métronome / boucle simple
     public static native void setBpm(int bpm);
     public static native void setLoopEnabled(boolean enabled);
-
-    // Séquenceur pas à pas ("pattern")
     public static native void setPatternModeEnabled(boolean enabled);
-    public static native void setPatternSubdivision(int stepsPerGroup); // 3 = ternaire, 4 = binaire
+    public static native void setPatternSubdivision(int stepsPerGroup);
     public static native void setPatternLength(int steps);
     public static native void setStepActive(int index, boolean active);
+
+    // --- Nouveau moteur multi-pistes (séquenceur) ---
+    public static native boolean loadTrackSound(int trackIndex, AssetManager assetManager, String fileName);
+    public static native void setTrackStepActive(int trackIndex, int stepIndex, boolean active);
+    public static native void setSequencerBpm(int bpm);
+    public static native void setSequencerSubdivision(int stepsPerGroup);
+    public static native void setSequencerLength(int steps);
+    public static native void setSequencerPlaying(boolean playing);
+    public static native void restartSequencer();
+    public static native void startSequencerStream();
+    public static native void stopSequencerStream();
 }
