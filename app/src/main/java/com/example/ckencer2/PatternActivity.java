@@ -32,14 +32,15 @@ public class PatternActivity extends AppCompatActivity {
         ternaryButton.setOnClickListener(v -> setSubdivision(3));
 
         playButton.setOnClickListener(v -> {
-            // --- TEST TEMPORAIRE du moteur multi-pistes, à retirer après vérification ---
             NativeAudio.setSequencerBpm(90);
-            boolean loaded = NativeAudio.loadTrackSound(0, getAssets(), "sounds/KICK_1.wav");
-            NativeAudio.setTrackStepActive(0, 0, true); // le kick joue sur le 1er temps
-            NativeAudio.setSequencerLength(4);
+            NativeAudio.loadTrackSound(0, getAssets(), "sounds/KICK_1.wav");
             NativeAudio.setSequencerPlaying(true);
             NativeAudio.startSequencerStream();
-            android.widget.Toast.makeText(this, "Son chargé : " + loaded, android.widget.Toast.LENGTH_SHORT).show();
+        });
+
+        stopButton.setOnClickListener(v -> {
+            NativeAudio.setSequencerPlaying(false);
+            NativeAudio.stopSequencerStream();
         });
 
         stopButton.setOnClickListener(v -> {
@@ -81,8 +82,8 @@ public class PatternActivity extends AppCompatActivity {
         int totalSteps = stepsPerGroup * groupCount;
 
         java.util.Arrays.fill(stepStates, false);
-        NativeAudio.setPatternSubdivision(stepsPerGroup);
-        NativeAudio.setPatternLength(totalSteps);
+        NativeAudio.setSequencerSubdivision(stepsPerGroup);
+        NativeAudio.setSequencerLength(totalSteps);
 
         buildGrid(totalSteps);
     }
@@ -110,9 +111,8 @@ public class PatternActivity extends AppCompatActivity {
             cell.setOnClickListener(v -> {
                 stepStates[index] = !stepStates[index];
                 cellRef.setBackgroundColor(stepStates[index] ? 0xFFCEEF34 : 0xFFFFFFFF);
-                NativeAudio.setStepActive(index, stepStates[index]);
+                NativeAudio.setTrackStepActive(0, index, stepStates[index]); // piste 0 pour l'instant
             });
-
             stepsContainer.addView(cell);
         }
     }
@@ -120,7 +120,7 @@ public class PatternActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        NativeAudio.setPatternModeEnabled(false);
-        NativeAudio.stopAudio();
+        NativeAudio.setSequencerPlaying(false);
+        NativeAudio.stopSequencerStream();
     }
 }
