@@ -325,6 +325,29 @@ struct Track {
     std::atomic<bool> stepActive[kSequencerMaxSteps];     // grille de cette piste (false par défaut)
 };
 
+
+
+// ---------------------------------------------------------------------------
+// Métronome : clic synthétisé (pas besoin de fichier .wav), avec un clic
+// "accentué" un peu plus aigu sur le premier temps de chaque mesure.
+// ---------------------------------------------------------------------------
+static std::vector<float> generateClick(float frequencyHz, float durationSec, float amplitude) {
+    constexpr float kPi = 3.14159265358979323846f;
+    int32_t sampleCount = (int32_t) (kEngineSampleRate * durationSec);
+    std::vector<float> buf(sampleCount);
+    for (int32_t i = 0; i < sampleCount; i++) {
+        float t = (float) i / (float) kEngineSampleRate;
+        float envelope = std::exp(-t * 45.0f); // décroissance rapide -> effet "tak" sec
+        buf[i] = amplitude * envelope * std::sin(2.0f * kPi * frequencyHz * t);
+    }
+    return buf;
+}
+
+static const std::vector<float> kMetronomeNormalClick = generateClick(1500.0f, 0.03f, 0.5f);
+static const std::vector<float> kMetronomeAccentClick = generateClick(2200.0f, 0.03f, 0.6f);
+
+
+
 class MultiTrackEngine : public oboe::AudioStreamCallback {
 public:
     oboe::DataCallbackResult onAudioReady(
@@ -355,27 +378,60 @@ public:
                 }
             }
 
-            // Mixage : on additionne toutes les pistes actives sur ce frame.
-            float left = 0.0f, right = 0.0f;
-            for (int32_t t = 0; t < kSequencerMaxTracks; t++) {
-                Track &track = tracks[t];
-                if (!track.assigned) continue;
+        }
+    }
 
-                int32_t pos = track.position.load();
-                if (pos >= (int32_t) track.samples.size()) continue; // piste terminée : silence
+    // Avance du métronome : un clic toutes les "metronomeFramesPerBeat" frames,
+    // indépendamment du séquenceur (une pulsation par noire).
+    if (metronomeEnabled && metronomeFramesPerBeat > 0) {
+        metronomeFrameCounter++;
+        if (metronomeFrameCounter >= metronomeFramesPerBeat) {
+            metronomeFrameCounter = 0;
+            int32_t beatsPerMeasure = metronomeBeatsPerMeasure.load();
+            if (beatsPerMeasure < 1) beatsPerMeasure = 1;
+            int32_t nextBeat = (metronomeCurrentBeatInMeasure.load() + 1) % beatsPerMeasure;
+            metronomeCurrentBeatInMeasure = nextBeat;
+            metronomeAccent = (nextBeat == 0); // 1er temps de la mesure = clic accentué
+            metronomePosition = 0; // redéclenche le clic
+        }
+    }
 
-                int32_t trackChannels = track.channelCount.load();
-                if (trackChannels >= 2 && pos + 1 < (int32_t) track.samples.size()) {
-                    left += track.samples[pos];
-                    right += track.samples[pos + 1];
-                    track.position = pos + 2;
-                } else {
-                    float value = track.samples[pos];
-                    left += value;
-                    right += value;
-                    track.position = pos + 1;
-                }
-            }
+    // Mixage : on additionne toutes les pistes actives sur ce frame.
+    float left = 0.0f, right = 0.0f;
+    for (int32_t t = 0; t < kSequencerMaxTracks; t++) {
+        Track &track = tracks[t];
+        if (!track.assigned) continue;
+
+        int32_t pos = track.position.load();
+        if (pos >= (int32_t) track.samples.size()) continue; // piste terminée : silence
+
+        int32_t trackChannels = track.channelCount.load();
+        if (trackChannels >= 2 && pos + 1 < (int32_t) track.samples.size()) {
+            left += track.samples[pos];
+            right += track.samples[pos + 1];
+            track.position = pos + 2;
+        } else {
+            float value = track.samples[pos];
+            left += value;
+            right += value;
+            track.position = pos + 1;
+        }
+    }
+
+    // On ajoute le clic du métronome au mixage s'il est en cours de lecture.
+    if (metronomeEnabled) {
+        const std::vector<float> &clickBuffer =
+                metronomeAccent.load() ? kMetronomeAccentClick : kMetronomeNormalClick;
+        int32_t clickPos = metronomePosition.load();
+        if (clickPos < (int32_t) clickBuffer.size()) {
+            float v = clickBuffer[clickPos];
+            left += v;
+            right += v;
+            metronomePosition = clickPos + 1;
+        }
+    }
+
+    // Léger écrêtage pour éviter la saturation quand plusieurs pistes s'additionnent.
 
             // Léger écrêtage pour éviter la saturation quand plusieurs pistes s'additionnent.
             left = std::max(-1.0f, std::min(1.0f, left));
@@ -384,7 +440,6 @@ public:
             for (int32_t ch = 0; ch < outChannels; ch++) {
                 outputBuffer[frame * outChannels + ch] = (ch == 0) ? left : right;
             }
-        }
 
         return oboe::DataCallbackResult::Continue;
     }
@@ -395,6 +450,15 @@ public:
     std::atomic<int32_t> framesPerStep{0};
     std::atomic<int32_t> stepFrameCounter{0};
     std::atomic<int32_t> currentStepIndex{-1};
+
+    // --- Métronome ---
+    std::atomic<bool> metronomeEnabled{false};
+    std::atomic<int32_t> metronomeFramesPerBeat{0};
+    std::atomic<int32_t> metronomeFrameCounter{0};
+    std::atomic<int32_t> metronomeBeatsPerMeasure{4};
+    std::atomic<int32_t> metronomeCurrentBeatInMeasure{-1};
+    std::atomic<int32_t> metronomePosition{0};
+    std::atomic<bool> metronomeAccent{false};
 };
 
 static MultiTrackEngine engine;
@@ -404,8 +468,12 @@ static std::atomic<int32_t> sequencerStepsPerGroup{4}; // 4 = binaire, 3 = terna
 static void updateSequencerTiming() {
     int32_t bpm = sequencerBpm.load();
     int32_t spg = sequencerStepsPerGroup.load();
+    int32_t framesPerBeat = 0;
+    if (bpm > 0) {
+        framesPerBeat = (int32_t) std::round(kEngineSampleRate * 60.0 / bpm);
+        engine.metronomeFramesPerBeat = framesPerBeat;
+    }
     if (bpm > 0 && spg > 0) {
-        int32_t framesPerBeat = (int32_t) std::round(kEngineSampleRate * 60.0 / bpm);
         engine.framesPerStep = framesPerBeat / spg;
     }
 }
@@ -552,4 +620,29 @@ Java_com_example_ckencer2_NativeAudio_stopSequencerStream(JNIEnv *env, jclass /*
         stream = nullptr;
     }
     engine.isPlaying = false;
+}
+
+
+// ---------------------------------------------------------------------------
+// JNI : métronome (activation + signature rythmique)
+// ---------------------------------------------------------------------------
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setMetronomeEnabled(JNIEnv *env, jclass /* clazz */,
+                                                          jboolean enabled) {
+    engine.metronomeEnabled = enabled;
+    if (enabled) {
+        // Déclenche le premier clic (accentué) dès le prochain frame audio.
+        engine.metronomeFrameCounter = engine.metronomeFramesPerBeat.load();
+        engine.metronomeCurrentBeatInMeasure = -1;
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_example_ckencer2_NativeAudio_setMetronomeTimeSignature(JNIEnv *env, jclass /* clazz */,
+                                                                jint numerator, jint denominator) {
+    // "Une pulsation par noire" : pour une signature en /8, une noire = 2 croches,
+    // donc le nombre de clics par mesure est la moitié du numérateur.
+    int32_t beatsPerMeasure = (denominator == 8) ? std::max(1, numerator / 2) : std::max(1, numerator);
+    engine.metronomeBeatsPerMeasure = beatsPerMeasure;
+    engine.metronomeCurrentBeatInMeasure = -1; // le prochain clic retombera sur le 1er temps (accentué)
 }

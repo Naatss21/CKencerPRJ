@@ -53,22 +53,32 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/patternStepsContainer">
 
+
+        <Button
+            android:id="@+id/patternStopButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="14dp"
+            android:text="Stop" />
+
+        <Button
+            android:id="@+id/metronomeButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Métro OFF" />
+
+
+
+        <Button
+            android:id="@+id/patternPlayButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Play"
+            tools:layout_editor_absoluteX="71dp"
+            tools:layout_editor_absoluteY="253dp" />
+
     </LinearLayout>
 
-    <Button
-        android:id="@+id/patternStopButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Stop"
-        tools:layout_editor_absoluteX="236dp"
-        tools:layout_editor_absoluteY="253dp" />
 
-    <Button
-        android:id="@+id/patternPlayButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Play"
-        tools:layout_editor_absoluteX="71dp"
-        tools:layout_editor_absoluteY="253dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

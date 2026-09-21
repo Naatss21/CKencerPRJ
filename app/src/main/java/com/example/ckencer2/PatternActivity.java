@@ -3,6 +3,7 @@ package com.example.ckencer2;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -13,9 +14,9 @@ public class PatternActivity extends AppCompatActivity {
     private LinearLayout stepsContainer;
     private final boolean[] stepStates = new boolean[MAX_STEPS];
 
-    private int stepsPerGroup = 3;   // 3 = ternaire (par défaut, comme dans l'exemple), 4 = binaire
-    private final int groupCount = 2; // nombre de groupes affichés (2 groupes de 3 = 6 cases)
-
+    private int stepsPerGroup = 4;   // 3 = binaire (par défaut)
+    private final int groupCount = 2; // nombre de groupes affichés (2 groupes de 4 = 8 cases)
+    private boolean metronomeOn = false;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -31,16 +32,48 @@ public class PatternActivity extends AppCompatActivity {
         ternaryButton.setOnClickListener(v -> setSubdivision(3));
 
         playButton.setOnClickListener(v -> {
-            NativeAudio.setPatternModeEnabled(true);
-            NativeAudio.startAudio();
+            // --- TEST TEMPORAIRE du moteur multi-pistes, à retirer après vérification ---
+            NativeAudio.setSequencerBpm(90);
+            boolean loaded = NativeAudio.loadTrackSound(0, getAssets(), "sounds/KICK_1.wav");
+            NativeAudio.setTrackStepActive(0, 0, true); // le kick joue sur le 1er temps
+            NativeAudio.setSequencerLength(4);
+            NativeAudio.setSequencerPlaying(true);
+            NativeAudio.startSequencerStream();
+            android.widget.Toast.makeText(this, "Son chargé : " + loaded, android.widget.Toast.LENGTH_SHORT).show();
         });
 
         stopButton.setOnClickListener(v -> {
-            NativeAudio.setPatternModeEnabled(false);
-            NativeAudio.stopAudio();
+            NativeAudio.setSequencerPlaying(false);
+            NativeAudio.stopSequencerStream();
+        });
+        setSubdivision(stepsPerGroup); // construit la grille initiale (ternaire, 6 cases)
+
+        Button metronomeButton = findViewById(R.id.metronomeButton);
+        NativeAudio.setMetronomeTimeSignature(4, 4); // signature par défaut au démarrage
+
+        metronomeButton.setOnClickListener(v -> {
+            metronomeOn = !metronomeOn;
+            NativeAudio.setMetronomeEnabled(metronomeOn);
+            metronomeButton.setText(metronomeOn ? "Métro ON" : "Métro OFF");
         });
 
-        setSubdivision(stepsPerGroup); // construit la grille initiale (ternaire, 6 cases)
+        metronomeButton.setOnLongClickListener(v -> {
+            PopupMenu menu = new PopupMenu(this, v);
+            menu.getMenu().add("4/4");
+            menu.getMenu().add("2/4");
+            menu.getMenu().add("3/4");
+            menu.getMenu().add("6/8");
+            menu.getMenu().add("12/8");
+            menu.setOnMenuItemClickListener(item -> {
+                String[] parts = item.getTitle().toString().split("/");
+                int numerator = Integer.parseInt(parts[0]);
+                int denominator = Integer.parseInt(parts[1]);
+                NativeAudio.setMetronomeTimeSignature(numerator, denominator);
+                return true;
+            });
+            menu.show();
+            return true; // consomme l'événement (pas de clic simple déclenché en plus)
+        });
     }
 
     private void setSubdivision(int newStepsPerGroup) {

@@ -34,6 +34,11 @@ public final class NativeAudio {
     public static native void setSequencerLength(int steps);
     public static native void setSequencerPlaying(boolean playing);
     public static native void restartSequencer();
+
     public static native void startSequencerStream();
     public static native void stopSequencerStream();
+
+    // --- Métronome ---
+    public static native void setMetronomeEnabled(boolean enabled);
+    public static native void setMetronomeTimeSignature(int numerator, int denominator);
 }
