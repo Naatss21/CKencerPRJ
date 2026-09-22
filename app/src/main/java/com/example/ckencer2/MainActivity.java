@@ -15,6 +15,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     private TextView selectedSoundLabel;
+    private boolean sequencerPlaying = false;
 
     private final ActivityResultLauncher<Intent> soundPicker =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -45,8 +46,21 @@ public class MainActivity extends AppCompatActivity {
         TextView bpmValueLabel = findViewById(R.id.bpmValueLabel);
         Switch loopSwitch = findViewById(R.id.loopSwitch);
 
-        playButton.setOnClickListener(v -> NativeAudio.startAudio());
-        stopButton.setOnClickListener(v -> NativeAudio.stopAudio());
+        playButton.setOnClickListener(v -> {
+            if (!sequencerPlaying) {
+                NativeAudio.startAudio();
+                NativeAudio.setSequencerPlaying(true);
+                sequencerPlaying = true;
+            } else {
+                NativeAudio.setSequencerPlaying(false);
+                sequencerPlaying = false;
+            }
+        });
+        stopButton.setOnClickListener(v -> {
+            NativeAudio.setSequencerPlaying(false);
+            NativeAudio.stopAudio();
+            sequencerPlaying = false;
+        });
         chooseSoundButton.setOnClickListener(v ->
                 soundPicker.launch(new Intent(this, SoundListActivity.class)));
 

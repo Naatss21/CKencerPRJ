@@ -22,13 +22,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:text="Binaire (4)" />
+            android:text="Binaire" />
 
         <Button
             android:id="@+id/patternTernaryButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Ternaire (3)" />
+            android:text="Ternaire " />
 
     </LinearLayout>
 
