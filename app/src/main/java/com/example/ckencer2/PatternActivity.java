@@ -1,10 +1,12 @@
 package com.example.ckencer2;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
-
+import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class PatternActivity extends AppCompatActivity {
@@ -18,6 +20,20 @@ public class PatternActivity extends AppCompatActivity {
     private final int groupCount = 2; // nombre de groupes affichés (2 groupes de 4 = 8 cases)
     private boolean metronomeOn = false;
     private Button metronomeButton;
+    private boolean sequencerPlaying = false;
+    private boolean trackSoundLoaded = false;
+
+    private TextView beatIndicatorLabel;
+    private final Handler beatPollHandler = new Handler(Looper.getMainLooper());
+    private final Runnable beatPollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            int beatIndex = NativeAudio.getMetronomeBeatIndex();       // 0-indexé
+            int beatsPerMeasure = NativeAudio.getMetronomeBeatsPerMeasure();
+            beatIndicatorLabel.setText((beatIndex + 1) + "/" + beatsPerMeasure);
+            beatPollHandler.postDelayed(this, 50); // rafraîchit 20x/seconde
+        }
+    };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -33,15 +49,30 @@ public class PatternActivity extends AppCompatActivity {
         ternaryButton.setOnClickListener(v -> setSubdivision(3));
 
         playButton.setOnClickListener(v -> {
-            NativeAudio.setSequencerBpm(90);
-            NativeAudio.loadTrackSound(0, getAssets(), "sounds/KICK_1.wav");
-            NativeAudio.setSequencerPlaying(true);
-            NativeAudio.startSequencerStream();
+            if (!sequencerPlaying) {
+                if (!trackSoundLoaded) {
+                    NativeAudio.setSequencerBpm(90);
+                    NativeAudio.loadTrackSound(0, getAssets(), "sounds/SHAKER_3.wav");
+                    trackSoundLoaded = true;
+                }
+                NativeAudio.startSequencerStream(); // no-op si déjà ouvert (cas d'une reprise après pause)
+                NativeAudio.setSequencerPlaying(true);
+                sequencerPlaying = true;
+                playButton.setText("Pause");
+            } else {
+                // Pause : on fige la position sans fermer le flux ni la réinitialiser.
+                NativeAudio.setSequencerPlaying(false);
+                sequencerPlaying = false;
+                playButton.setText("Play");
+            }
         });
 
         stopButton.setOnClickListener(v -> {
             NativeAudio.setSequencerPlaying(false);
             NativeAudio.stopSequencerStream();
+            NativeAudio.restartSequencer(); // remet la position à la case 0 pour le prochain Play
+            sequencerPlaying = false;
+            playButton.setText("Play");
             metronomeOn = false;
             NativeAudio.setMetronomeEnabled(false);
             metronomeButton.setText("Métro OFF");
@@ -49,6 +80,8 @@ public class PatternActivity extends AppCompatActivity {
 
         setSubdivision(stepsPerGroup); // construit la grille initiale (binaire, 8 cases)
         metronomeButton = findViewById(R.id.metronomeButton);
+        beatIndicatorLabel = findViewById(R.id.beatIndicatorLabel);
+        beatPollHandler.post(beatPollRunnable);
         NativeAudio.setMetronomeTimeSignature(4, 4); // signature par défaut au démarrage
         metronomeButton.setOnClickListener(v -> {
             metronomeOn = !metronomeOn;
@@ -115,11 +148,13 @@ public class PatternActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        NativeAudio.setSequencerPlaying(false);
-        NativeAudio.stopSequencerStream();
-        NativeAudio.setMetronomeEnabled(false);
-    }
+        @Override
+        protected void onDestroy() {
+            super.onDestroy();
+            beatPollHandler.removeCallbacks(beatPollRunnable);
+            NativeAudio.setSequencerPlaying(false);
+            NativeAudio.stopSequencerStream();
+            NativeAudio.setMetronomeEnabled(false);
+            sequencerPlaying = false;}
+
 }

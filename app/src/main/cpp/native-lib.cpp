@@ -817,22 +817,30 @@ public:
                                         std::max(1, metronomeBeatsPerMeasure.load());
 
                                 int32_t beatIndex =
-                                        (next / spg) % beatsPerMeasure;
+                                        metronomeBeatCounter.load() % beatsPerMeasure;
 
                                 metronomeAccent =
                                         (beatIndex == 0);
 
+                                metronomeBeatCounter =
+                                        metronomeBeatCounter.load() + 1;
+
+                                currentBeatDisplay = beatIndex;
+
                                 metronomePosition = 0;
                             }
+
                         }
                     }
                 }
 
             } else if (metronomeEnabled &&
-                       metronomeFramesPerBeat > 0) {
+                       metronomeFramesPerBeat > 0 && !sequencerHasBeenStarted ) {
 
-                // Pas de séquenceur en cours : le métronome tourne
-                // sur sa propre horloge (seul cas où il en a besoin).
+                // Le séquenceur n'a encore jamais démarré : le métronome
+                // tourne sur sa propre horloge pour caler le tempo.
+                // Une fois qu'il a démarré, une pause fige tout, y compris
+                // le métronome (cette branche n'est alors plus jamais prise)
                 metronomeFrameCounter++;
 
                 if (metronomeFrameCounter >=
@@ -859,6 +867,8 @@ public:
 
                     metronomeAccent =
                             (nextBeat == 0);
+
+                    currentBeatDisplay = nextBeat;
 
                     metronomePosition = 0;
                 }
@@ -1024,6 +1034,11 @@ public:
     // -----------------------------------------------------------------------
     std::atomic<bool> isPlaying{false};
 
+    // true dès le premier Play ; remis à false uniquement par Stop.
+    // Sert à distinguer "en pause" (le métronome doit se figer) de
+    // "jamais démarré" (le métronome peut tourner seul pour caler le tempo).
+    std::atomic<bool> sequencerHasBeenStarted{false};
+
     std::atomic<int32_t> numSteps{5};
 
     std::atomic<int32_t> framesPerStep{0};
@@ -1052,6 +1067,13 @@ public:
     std::atomic<int32_t> metronomePosition{0};
 
     std::atomic<bool> metronomeAccent{false};
+
+    // Compteur de temps indépendant de la longueur de la boucle du séquenceur,
+    // pour que l'accent respecte vraiment la signature choisie (4/4, 3/4...).
+    std::atomic<int32_t> metronomeBeatCounter{0};
+
+    // Temps courant dans la mesure (0-indexé), pour affichage côté Java (1/4, 2/4...).
+    std::atomic<int32_t> currentBeatDisplay{0};
 };
 
 
@@ -1451,13 +1473,13 @@ Java_com_example_ckencer2_NativeAudio_setSequencerPlaying(
     // Play = reprend
     // Pause = s'arrête sans modifier les positions
     engine.isPlaying = newState;
-
     if (newState) {
-        // On reprend exactement où on était.
-        // On ne touche PAS aux positions des tracks.
-        engine.stepFrameCounter = 0;
+        engine.sequencerHasBeenStarted = true;
     }
+    // On ne touche à rien d'autre : stepFrameCounter reste exactement
+    // où il était figé pendant la pause, pour reprendre sans décalage.
 }
+
 
 // ---------------------------------------------------------------------------
 // JNI : redémarrage du séquenceur
@@ -1564,6 +1586,9 @@ Java_com_example_ckencer2_NativeAudio_stopSequencerStream(
     engine.metronomeFrameCounter = 0;
     engine.metronomeCurrentBeatInMeasure = -1;
     engine.metronomePosition = 0;
+    engine.metronomeBeatCounter = 0;
+    engine.sequencerHasBeenStarted = false;
+    engine.currentBeatDisplay = 0;
 
     if (stream != nullptr) {
         stream->requestStop();
@@ -1585,9 +1610,6 @@ Java_com_example_ckencer2_NativeAudio_setMetronomeEnabled(
     engine.metronomeEnabled =
             enabled;
 
-
-    engine.metronomeEnabled =
-            enabled;
 
 
     if (enabled && !engine.isPlaying) {
@@ -1654,4 +1676,25 @@ Java_com_example_ckencer2_NativeAudio_setMetronomeTimeSignature(
     // le premier temps de la mesure.
     engine.metronomeCurrentBeatInMeasure =
             -1;
+
+    engine.metronomeBeatCounter = 0;
+}
+
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_ckencer2_NativeAudio_getMetronomeBeatIndex(
+        JNIEnv *env,
+        jclass /* clazz */) {
+
+    return engine.currentBeatDisplay.load();
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_ckencer2_NativeAudio_getMetronomeBeatsPerMeasure(
+        JNIEnv *env,
+        jclass /* clazz */) {
+
+    return engine.metronomeBeatsPerMeasure.load();
 }

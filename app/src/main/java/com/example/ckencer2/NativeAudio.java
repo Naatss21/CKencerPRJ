@@ -41,4 +41,6 @@ public final class NativeAudio {
     // --- Métronome ---
     public static native void setMetronomeEnabled(boolean enabled);
     public static native void setMetronomeTimeSignature(int numerator, int denominator);
+    public static native int getMetronomeBeatIndex();
+    public static native int getMetronomeBeatsPerMeasure();
 }
