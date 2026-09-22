@@ -14,9 +14,10 @@ public class PatternActivity extends AppCompatActivity {
     private LinearLayout stepsContainer;
     private final boolean[] stepStates = new boolean[MAX_STEPS];
 
-    private int stepsPerGroup = 4;   // 3 = binaire (par défaut)
+    private int stepsPerGroup = 4;   // 4 = binaire (par défaut)
     private final int groupCount = 2; // nombre de groupes affichés (2 groupes de 4 = 8 cases)
     private boolean metronomeOn = false;
+    private Button metronomeButton;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,17 +42,14 @@ public class PatternActivity extends AppCompatActivity {
         stopButton.setOnClickListener(v -> {
             NativeAudio.setSequencerPlaying(false);
             NativeAudio.stopSequencerStream();
+            metronomeOn = false;
+            NativeAudio.setMetronomeEnabled(false);
+            metronomeButton.setText("Métro OFF");
         });
 
-        stopButton.setOnClickListener(v -> {
-            NativeAudio.setSequencerPlaying(false);
-            NativeAudio.stopSequencerStream();
-        });
-        setSubdivision(stepsPerGroup); // construit la grille initiale (ternaire, 6 cases)
-
-        Button metronomeButton = findViewById(R.id.metronomeButton);
+        setSubdivision(stepsPerGroup); // construit la grille initiale (binaire, 8 cases)
+        metronomeButton = findViewById(R.id.metronomeButton);
         NativeAudio.setMetronomeTimeSignature(4, 4); // signature par défaut au démarrage
-
         metronomeButton.setOnClickListener(v -> {
             metronomeOn = !metronomeOn;
             NativeAudio.setMetronomeEnabled(metronomeOn);
@@ -122,5 +120,6 @@ public class PatternActivity extends AppCompatActivity {
         super.onDestroy();
         NativeAudio.setSequencerPlaying(false);
         NativeAudio.stopSequencerStream();
+        NativeAudio.setMetronomeEnabled(false);
     }
 }

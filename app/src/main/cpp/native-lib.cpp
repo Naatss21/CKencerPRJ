@@ -761,10 +761,13 @@ public:
              frame < numFrames;
              frame++) {
 
-
             // =============================================================
-            // AVANCEMENT DU SEQUENCEUR
+            // AVANCEMENT DU SEQUENCEUR + METRONOME SYNCHRONISE
             // =============================================================
+            // Quand le séquenceur tourne, le métronome n'a plus sa propre
+            // horloge : il se déclenche exactement quand le séquenceur
+            // atteint le début d'une nouvelle noire. Impossible d'être
+            // décalé puisque c'est la même horloge qui pilote les deux.
 
             if (isPlaying &&
                 framesPerStep > 0) {
@@ -801,18 +804,35 @@ public:
                                 tracks[t].position = 0;
                             }
                         }
+
+                        if (metronomeEnabled) {
+
+                            int32_t spg =
+                                    std::max(1, stepsPerGroup.load());
+
+                            // Début d'une nouvelle noire ?
+                            if (next % spg == 0) {
+
+                                int32_t beatsPerMeasure =
+                                        std::max(1, metronomeBeatsPerMeasure.load());
+
+                                int32_t beatIndex =
+                                        (next / spg) % beatsPerMeasure;
+
+                                metronomeAccent =
+                                        (beatIndex == 0);
+
+                                metronomePosition = 0;
+                            }
+                        }
                     }
                 }
-            }
 
+            } else if (metronomeEnabled &&
+                       metronomeFramesPerBeat > 0) {
 
-            // =============================================================
-            // AVANCEMENT DU METRONOME
-            // =============================================================
-
-            if (metronomeEnabled &&
-                metronomeFramesPerBeat > 0) {
-
+                // Pas de séquenceur en cours : le métronome tourne
+                // sur sa propre horloge (seul cas où il en a besoin).
                 metronomeFrameCounter++;
 
                 if (metronomeFrameCounter >=
@@ -827,7 +847,6 @@ public:
                         beatsPerMeasure = 1;
                     }
 
-
                     int32_t nextBeat =
                             (
                                     metronomeCurrentBeatInMeasure.load()
@@ -835,20 +854,16 @@ public:
                             )
                             % beatsPerMeasure;
 
-
                     metronomeCurrentBeatInMeasure =
                             nextBeat;
 
-
-                    // Premier temps = accent.
                     metronomeAccent =
                             (nextBeat == 0);
 
-
-                    // Redéclenche le clic.
                     metronomePosition = 0;
                 }
             }
+
 
 
             // =============================================================
@@ -1016,6 +1031,9 @@ public:
     std::atomic<int32_t> stepFrameCounter{0};
 
     std::atomic<int32_t> currentStepIndex{-1};
+
+    std::atomic<int32_t> stepsPerGroup{4}; // nombre de cases par noire (3 = ternaire, 4 = binaire)
+
 
 
     // -----------------------------------------------------------------------
@@ -1393,6 +1411,9 @@ Java_com_example_ckencer2_NativeAudio_setSequencerSubdivision(
         sequencerStepsPerGroup =
                 stepsPerGroup;
 
+        engine.stepsPerGroup =
+                stepsPerGroup;
+
         updateSequencerTiming();
     }
 }
@@ -1565,17 +1586,22 @@ Java_com_example_ckencer2_NativeAudio_setMetronomeEnabled(
             enabled;
 
 
-    if (enabled) {
+    engine.metronomeEnabled =
+            enabled;
 
-        // Le premier clic doit être joué
-        // immédiatement et être accentué.
 
+    if (enabled && !engine.isPlaying) {
+
+        // Le séquenceur ne tourne pas : pas d'horloge à suivre,
+        // on déclenche le premier clic immédiatement.
         engine.metronomeFrameCounter =
                 engine.metronomeFramesPerBeat.load();
 
         engine.metronomeCurrentBeatInMeasure =
                 -1;
     }
+    // Si le séquenceur tourne déjà, on ne touche à rien : le clic
+    // se déclenchera tout seul, calé sur la grille, à la prochaine noire.
 }
 
 
