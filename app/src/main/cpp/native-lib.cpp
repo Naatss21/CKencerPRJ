@@ -1573,9 +1573,9 @@ Java_com_example_ckencer2_NativeAudio_stopSequencerStream(
 
     engine.isPlaying = false;
 
-    // Remise à zéro de la lecture de toutes les pistes
+    // Mettre les pistes en état silencieux (position à la fin des échantillons)
     for (int32_t t = 0; t < kSequencerMaxTracks; t++) {
-        engine.tracks[t].position = 0;
+        engine.tracks[t].position = (int32_t) engine.tracks[t].samples.size();
     }
 
     // Retour au premier step

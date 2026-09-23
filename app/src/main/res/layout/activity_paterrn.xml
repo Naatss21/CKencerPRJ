@@ -1,93 +1,224 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#D0F0E7">
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/teal_200"
+    android:gravity="center_horizontal">
 
+    <!-- BARRE DE CONTRÔLE SUPÉRIEURE -->
     <LinearLayout
-        android:id="@+id/patternSubdivisionRow"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
         android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        android:gravity="center"
+        android:layout_marginTop="16dp">
 
-        <Button
-            android:id="@+id/patternBinaryButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="Binaire" />
+        <!-- Bouton Play / Pause (Triangle) -->
+        <ImageButton
+            android:id="@+id/btn_play_pause"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play_triangle"
+            android:contentDescription="Play/Pause" />
 
-        <Button
-            android:id="@+id/patternTernaryButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ternaire " />
+        <!-- Bouton Stop (Carré) -->
+        <ImageButton
+            android:id="@+id/btn_stop"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_marginStart="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_stop_square"
+            android:contentDescription="Stop" />
 
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/patternStepsContainer"
-        android:layout_width="0dp"
-        android:layout_height="80dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="48dp"
-        android:layout_marginEnd="24dp"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/patternSubdivisionRow" />
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="48dp"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/patternStepsContainer">
-
-
-        <Button
-            android:id="@+id/patternStopButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="14dp"
-            android:text="Stop" />
-
-
-        <Button
-            android:id="@+id/metronomeButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Métro OFF" />
+        <!-- Bouton Métronome -->
+        <ImageButton
+            android:id="@+id/btn_metronome"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_marginStart="24dp"
+            android:background="@drawable/border_rectangle"
+            android:backgroundTint="#FF3B30"
+            android:src="@drawable/ic_metronome"
+            android:contentDescription="Metronome" />
 
         <TextView
             android:id="@+id/beatIndicatorLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
-            android:layout_gravity="center_vertical"
+            android:layout_marginStart="16dp"
             android:text="1/4"
-            android:textColor="#2F2222"
-            android:textSize="18sp" />
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- ÉCRAN BPM & TEMPS -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="16dp"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="8dp"
+        android:background="@drawable/border_rectangle"
+        android:gravity="center">
 
         <Button
-            android:id="@+id/patternPlayButton"
+            android:id="@+id/btn_bpm_minus"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="-"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#000000"
+            android:padding="0dp"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/tv_bpm"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Play/Pause"
-            tools:layout_editor_absoluteX="71dp"
-            tools:layout_editor_absoluteY="253dp" />
+            android:text="90 bpm"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
+
+        <Button
+            android:id="@+id/btn_bpm_plus"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:text="+"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#000000"
+            android:padding="0dp"
+            android:layout_marginStart="8dp" />
 
     </LinearLayout>
 
+    <!-- BOUTONS DE SAUVEGARDE ET CHARGEMENT -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="12dp">
 
+        <Button
+            android:id="@+id/btn_save_pattern"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="Sauvegarder"
+            android:textSize="12sp"
+            android:backgroundTint="#007AFF"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="16dp" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <Button
+            android:id="@+id/btn_load_pattern"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="Charger"
+            android:textSize="12sp"
+            android:backgroundTint="#5856D6"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- GRILLE DU SÉQUENCEUR (3 PISTES SYNCHRONISÉES) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="24dp">
+
+        <!-- Colonne de boutons fixes à gauche -->
+        <LinearLayout
+            android:layout_width="50dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginEnd="16dp"
+            android:gravity="center_horizontal">
+
+            <!-- Espace vide pour s'aligner avec la ligne des temps -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="25dp"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/btn_select_sound_1"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:backgroundTint="#FFEB3B"
+                android:layout_marginBottom="16dp" />
+
+            <Button
+                android:id="@+id/btn_select_sound_2"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:backgroundTint="#FFEB3B"
+                android:layout_marginBottom="16dp" />
+
+            <Button
+                android:id="@+id/btn_select_sound_3"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:backgroundTint="#FFEB3B" />
+        </LinearLayout>
+
+        <!-- Vue défilante unique pour synchroniser les 3 pistes et les marques de temps -->
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Ligne des marqueurs de temps (Temps 1, Temps 2...) -->
+                <LinearLayout
+                    android:id="@+id/container_time_markers"
+                    android:layout_width="wrap_content"
+                    android:layout_height="25dp"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Piste 1 -->
+                <LinearLayout
+                    android:id="@+id/container_track_1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="50dp"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Piste 2 -->
+                <LinearLayout
+                    android:id="@+id/container_track_2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="50dp"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Piste 3 -->
+                <LinearLayout
+                    android:id="@+id/container_track_3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="50dp"
+                    android:orientation="horizontal" />
+            </LinearLayout>
+        </HorizontalScrollView>
+    </LinearLayout>
+
+</LinearLayout>
